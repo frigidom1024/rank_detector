@@ -5,6 +5,7 @@ import asyncio
 import aiohttp
 import requests
 from typing import List, Dict, Optional
+from abc import ABC, abstractmethod
 from PIL import Image
 import numpy as np
 import cv2
@@ -38,24 +39,259 @@ class RecognitionResult:
     confidence: float   # 置信度 0-1
 
 
+# ==================== API策略抽象层 ====================
+
+class APIStrategy(ABC):
+    """API调用策略基类"""
+
+    @abstractmethod
+    def call(self, image_base64: str, prompt: str) -> dict:
+        """同步调用API"""
+        pass
+
+    @abstractmethod
+    async def acall(self, image_base64: str, prompt: str) -> dict:
+        """异步调用API"""
+        pass
+
+    @abstractmethod
+    def parse_response(self, response: dict) -> RecognitionResult:
+        """解析API响应"""
+        pass
+
+
+class DoubaoStrategy(APIStrategy):
+    """豆包/火山引擎 API策略"""
+
+    def __init__(self, api_key: str, base_url: str, model: str):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.model = model
+
+    def call(self, image_base64: str, prompt: str) -> dict:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "input": [{
+                "role": "user",
+                "content": [
+                    {"type": "input_image", "image_url": f"data:image/png;base64,{image_base64}"},
+                    {"type": "input_text", "text": prompt}
+                ]
+            }]
+        }
+        response = requests.post(
+            f"{self.base_url}/responses",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    async def acall(self, image_base64: str, prompt: str) -> dict:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "input": [{
+                "role": "user",
+                "content": [
+                    {"type": "input_image", "image_url": f"data:image/png;base64,{image_base64}"},
+                    {"type": "input_text", "text": prompt}
+                ]
+            }]
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.base_url}/responses",
+                headers=headers,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as response:
+                response.raise_for_status()
+                return await response.json()
+
+    def parse_response(self, response: dict) -> RecognitionResult:
+        try:
+            content = ""
+            for item in response.get("output", []):
+                if item.get("type") == "message":
+                    for c in item.get("content", []):
+                        if c.get("type") == "output_text":
+                            content = c.get("text", "")
+                            break
+            return self._extract_result(content)
+        except (KeyError, IndexError, json.JSONDecodeError):
+            return RecognitionResult(rank="Unknown", level=0, confidence=0.0)
+
+    def _extract_result(self, content: str) -> RecognitionResult:
+        json_str = content.strip()
+        if json_str.startswith("```json"):
+            json_str = json_str[7:]
+        if json_str.endswith("```"):
+            json_str = json_str[:-3]
+        json_str = json_str.strip()
+        data = json.loads(json_str)
+        return RecognitionResult(
+            rank=data.get("rank", "Unknown"),
+            level=int(data.get("level", 0)),
+            confidence=float(data.get("confidence", 0.0))
+        )
+
+
+class ZhipuStrategy(APIStrategy):
+    """智谱 AI API策略"""
+
+    def __init__(self, api_key: str, base_url: str, model: str):
+        self.api_key = api_key
+        self.base_url = base_url
+        self.model = model
+
+    def call(self, image_base64: str, prompt: str) -> dict:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}},
+                        {"type": "text", "text": prompt}
+                    ]
+                }
+            ],
+            "stream": False,
+        }
+        response = requests.post(
+            f"{self.base_url}/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    async def acall(self, image_base64: str, prompt: str) -> dict:
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.model,
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image_base64}"}},
+                        {"type": "text", "text": prompt}
+                    ]
+                }
+            ],
+            "stream": False,
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as response:
+                response.raise_for_status()
+                return await response.json()
+
+    def parse_response(self, response: dict) -> RecognitionResult:
+        try:
+            content = response.get("choices", [{}])[0].get("message", {}).get("content", "")
+            return self._extract_result(content)
+        except (KeyError, IndexError, json.JSONDecodeError):
+            return RecognitionResult(rank="Unknown", level=0, confidence=0.0)
+
+    def _extract_result(self, content: str) -> RecognitionResult:
+        json_str = content.strip()
+        if json_str.startswith("```json"):
+            json_str = json_str[7:]
+        if json_str.endswith("```"):
+            json_str = json_str[:-3]
+        json_str = json_str.strip()
+        data = json.loads(json_str)
+        return RecognitionResult(
+            rank=data.get("rank", "Unknown"),
+            level=int(data.get("level", 0)),
+            confidence=float(data.get("confidence", 0.0))
+        )
+
+
+# ==================== 策略工厂 ====================
+
+class APIStrategyFactory:
+    """API策略工厂，根据配置创建对应的策略"""
+
+    @staticmethod
+    def create(
+        api_key: str,
+        api_base_url: str,
+        api_model: str,
+        api_type: str = None,
+    ) -> APIStrategy:
+        # 自动识别api_type
+        if api_type is None:
+            if "volces.com" in api_base_url or "ark.cn" in api_base_url:
+                api_type = "doubao"
+            elif "bigmodel.cn" in api_base_url or "zhipuai" in api_base_url:
+                api_type = "zhipu"
+            else:
+                api_type = "doubao"  # 默认
+
+        if api_type == "doubao":
+            return DoubaoStrategy(api_key, api_base_url, api_model)
+        elif api_type == "zhipu":
+            return ZhipuStrategy(api_key, api_base_url, api_model)
+        else:
+            raise ValueError(f"Unsupported API type: {api_type}")
+
+
+# ==================== 主识别器 ====================
+
 class AIAwareLegendRecognizer:
+    """游戏段位图标识别器，支持多种AI API"""
+
+    # 预定义的API类型常量
+    API_TYPE_DOUBAO = "doubao"
+    API_TYPE_ZHIPU = "zhipu"
+
     def __init__(
         self,
         api_key: str,
         api_base_url: str = "https://ark.cn-beijing.volces.com/api/v3",
         api_model: str = "doubao-seed-2-0-pro-260215",
+        api_type: str = None,
         legend_dir: str = "data/legend",
         unknown_dir: str = "data/unknown",
-        auto_crop: bool = False,  # 是否自动裁剪左上角图标区域
+        auto_crop: bool = False,
     ):
         self.api_key = api_key
         self.api_base_url = api_base_url
         self.api_model = api_model
+        self.api_type = api_type
         self.legend_dir = Path(legend_dir)
         self.unknown_dir = Path(unknown_dir)
         self.auto_crop = auto_crop
         self._legend_counter = 0
         self._unknown_counter = 0
+
+        # 创建API策略
+        self._api_strategy = APIStrategyFactory.create(
+            api_key, api_base_url, api_model, api_type
+        )
 
         self.legend_dir.mkdir(parents=True, exist_ok=True)
         self.unknown_dir.mkdir(parents=True, exist_ok=True)
@@ -84,61 +320,12 @@ class AIAwareLegendRecognizer:
         y2 = int(CROP_REGION["y2"] * h)
         return img[y1:y2, x1:x2]
 
-    def _call_api(self, image_base64: str, prompt: str) -> dict:
-        """Call the Doubao API with image and prompt."""
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": self.api_model,
-            "input": [{
-                "role": "user",
-                "content": [
-                    {"type": "input_image", "image_url": f"data:image/png;base64,{image_base64}"},
-                    {"type": "input_text", "text": prompt}
-                ]
-            }]
-        }
-        response = requests.post(
-            f"{self.api_base_url}/responses",
-            headers=headers,
-            json=payload,
-            timeout=30,
-        )
-        response.raise_for_status()
-        return response.json()
-
-    def _parse_response(self, response: dict) -> RecognitionResult:
-        """Parse API response into RecognitionResult."""
-        try:
-            content = ""
-            for item in response.get("output", []):
-                if item.get("type") == "message":
-                    for c in item.get("content", []):
-                        if c.get("type") == "output_text":
-                            content = c.get("text", "")
-                            break
-            json_str = content.strip()
-            if json_str.startswith("```json"):
-                json_str = json_str[7:]
-            if json_str.endswith("```"):
-                json_str = json_str[:-3]
-            json_str = json_str.strip()
-            data = json.loads(json_str)
-            rank = data.get("rank", "Unknown")
-            level = int(data.get("level", 0))
-            confidence = float(data.get("confidence", 0.0))
-            return RecognitionResult(rank=rank, level=level, confidence=confidence)
-        except (KeyError, IndexError, json.JSONDecodeError) as e:
-            return RecognitionResult(rank="Unknown", level=0, confidence=0.0)
-
     def _recognize(self, img: np.ndarray) -> RecognitionResult:
         """Full recognition pipeline: encode image and call API."""
         _, buffer = cv2.imencode(".png", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
         image_base64 = base64.b64encode(buffer).decode("utf-8")
-        response = self._call_api(image_base64, LEGENDARY_PROMPT)
-        return self._parse_response(response)
+        response = self._api_strategy.call(image_base64, LEGENDARY_PROMPT)
+        return self._api_strategy.parse_response(response)
 
     def _save_image(self, img: np.ndarray, rank: str, level: int) -> str:
         """保存图片到对应目录"""
@@ -171,38 +358,12 @@ class AIAwareLegendRecognizer:
 
     # ==================== Async Methods ====================
 
-    async def _acall_api(self, image_base64: str, prompt: str) -> dict:
-        """Async call the Doubao API."""
-        headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json",
-        }
-        payload = {
-            "model": self.api_model,
-            "input": [{
-                "role": "user",
-                "content": [
-                    {"type": "input_image", "image_url": f"data:image/png;base64,{image_base64}"},
-                    {"type": "input_text", "text": prompt}
-                ]
-            }]
-        }
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{self.api_base_url}/responses",
-                headers=headers,
-                json=payload,
-                timeout=aiohttp.ClientTimeout(total=60),
-            ) as response:
-                response.raise_for_status()
-                return await response.json()
-
     async def _arecognize(self, img: np.ndarray) -> RecognitionResult:
         """Async full recognition pipeline."""
         _, buffer = cv2.imencode(".png", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
         image_base64 = base64.b64encode(buffer).decode("utf-8")
-        response = await self._acall_api(image_base64, LEGENDARY_PROMPT)
-        return self._parse_response(response)
+        response = await self._api_strategy.acall(image_base64, LEGENDARY_PROMPT)
+        return self._api_strategy.parse_response(response)
 
     async def recognize_ai_async(self, image_source) -> RecognitionResult:
         """Async识别单张图片"""
