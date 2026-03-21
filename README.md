@@ -4,8 +4,18 @@
 
 ## 安装
 
+### 从 Git 仓库直接安装
+
 ```bash
-pip install -r requirements.txt
+pip install git+https://github.com/frigidom1024/rank_detector.git
+```
+
+### 从源码安装
+
+```bash
+git clone git@github.com:frigidom1024/rank_detector.git
+cd rank_detector
+pip install -e .
 ```
 
 ## 快速开始
