@@ -10,3 +10,4 @@ data/unknown/*
 !data/unknown/.gitkeep
 __pycache__/
 *.pyc
+.env
