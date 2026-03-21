@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "legend-recognizer"
+version = "0.1.0"
+description = "游戏段位图标识别模块，专注于传奇(Legendary)段位识别"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aiohttp>=3.9.0",
+    "numpy>=1.24.0",
+    "opencv-python>=4.8.0",
+    "Pillow>=10.0.0",
+    "requests>=2.31.0",
+]
+
+[project.urls]
+Repository = "https://github.com/your-repo/rank_detector"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*"]
