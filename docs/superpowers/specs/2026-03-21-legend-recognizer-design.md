@@ -1,6 +1,6 @@
-# Legend Recognizer 模块设计
+# AIAware Legend Recognizer 模块设计
 
-> **目标:** 创建一个专注于传奇(Legendary)段位识别的 Python 模块
+> **目标:** 创建一个专注于传奇(Legendary)段位识别的 AI 模块
 
 ## 概述
 
@@ -9,20 +9,23 @@
 ## API 设计
 
 ```python
-from core.legend_recognizer import LegendRecognizer, RecognitionResult
+from core.legend_recognizer import AIAwareLegendRecognizer, RecognitionResult
 
-# 初始化（可配置路径）
-recognizer = LegendRecognizer(
-    legend_dir="data/legend",   # 传奇图片输出目录
-    unknown_dir="data/unknown", # 非传奇图片输出目录
+# 初始化（可配置 API 和路径）
+recognizer = AIAwareLegendRecognizer(
+    api_key="your_key",                              # API 密钥
+    api_base_url="https://ark.cn-beijing.volces.com/api/v3",  # API 地址
+    api_model="doubao-seed-2-0-pro-260215",         # 模型
+    legend_dir="data/legend",                        # 传奇图片输出目录
+    unknown_dir="data/unknown",                      # 非传奇图片输出目录
 )
 
 # 单张识别
-result = recognizer.recognize("test.png")           # 本地文件
-result = recognizer.recognize("https://example.com/img.png")  # URL
+result = recognizer.recognize_ai("test.png")                    # 本地文件
+result = recognizer.recognize_ai("https://example.com/img.png") # URL
 
 # 批量识别
-results = recognizer.recognize_batch(["img1.png", "img2.png"])
+results = recognizer.recognize_batch_ai(["img1.png", "img2.png"])
 ```
 
 ### RecognitionResult 数据类
@@ -33,7 +36,6 @@ class RecognitionResult:
     rank: str           # "Legendary" 或 "Unknown"
     level: int          # 传奇排名，或 0
     confidence: float   # 置信度 0-1
-    saved_path: str      # 保存的文件路径
 ```
 
 ## 目录结构
