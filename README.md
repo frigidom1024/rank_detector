@@ -21,7 +21,7 @@ pip install -e .
 ## 快速开始
 
 ```python
-from core import AIAwareLegendRecognizer
+from rank_detector_core import AIAwareLegendRecognizer
 
 # 初始化
 recognizer = AIAwareLegendRecognizer(
@@ -72,6 +72,8 @@ results = asyncio.run(async_batch())
 ## 目录结构
 
 ```
+rank_detector_core/   # 核心识别模块
+rank_detector_utils/  # 工具模块
 data/
 ├── legend/           # 传奇图片 Legend_{level}_{id}.png
 │   └── Legend_5286_001.png

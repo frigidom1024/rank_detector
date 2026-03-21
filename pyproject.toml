@@ -21,4 +21,4 @@ Repository = "https://github.com/your-repo/rank_detector"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["core*"]
+include = ["rank_detector_core*", "rank_detector_utils*"]
