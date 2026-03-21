@@ -33,6 +33,11 @@ recognizer = AIAwareLegendRecognizer(
     auto_crop=False,               # 是否自动裁剪左上角图标区域
 )
 
+# 支持的模型类型:
+# - 豆包/火山引擎: api_base_url 包含 "volces.com" 或 "ark.cn"
+# - 智谱AI: api_base_url 包含 "bigmodel.cn" 或 "zhipuai"
+# 也可通过 api_type 参数显式指定: "doubao" 或 "zhipu"
+
 # 同步识别
 result = recognizer.recognize_ai("test.png")
 print(f"Rank: {result.rank}, Level: {result.level}, Confidence: {result.confidence}")
