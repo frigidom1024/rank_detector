@@ -150,7 +150,9 @@ class AIAwareLegendRecognizer:
             filename = f"Unknown_{self._unknown_counter:03d}.png"
             filepath = self.unknown_dir / filename
             self._unknown_counter += 1
-        cv2.imwrite(str(filepath), img)
+        # 转换为 BGR (cv2.imwrite expects BGR)
+        img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+        cv2.imwrite(str(filepath), img_bgr)
         return str(filepath)
 
     def recognize_ai(self, image_source) -> RecognitionResult:
