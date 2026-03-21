@@ -1,1 +1,12 @@
 dataset
+data/legend/*
+data/unknown/*
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.bmp
+!data/legend/.gitkeep
+!data/unknown/.gitkeep
+__pycache__/
+*.pyc
