@@ -50,14 +50,11 @@ class AIAwareLegendRecognizer:
         self.api_model = api_model
         self.legend_dir = Path(legend_dir)
         self.unknown_dir = Path(unknown_dir)
-        self._id_counter = 0
+        self._legend_counter = 0
+        self._unknown_counter = 0
 
         self.legend_dir.mkdir(parents=True, exist_ok=True)
         self.unknown_dir.mkdir(parents=True, exist_ok=True)
-
-    def _get_next_id(self) -> int:
-        self._id_counter += 1
-        return self._id_counter
 
     def _load_image(self, source) -> np.ndarray:
         """Load image from file path, URL, or numpy array."""
@@ -140,3 +137,30 @@ class AIAwareLegendRecognizer:
         image_base64 = base64.b64encode(buffer).decode("utf-8")
         response = self._call_api(image_base64, LEGENDARY_PROMPT)
         return self._parse_response(response)
+
+    def _save_image(self, img: np.ndarray, rank: str, level: int) -> str:
+        """保存图片到对应目录"""
+        if rank == "Legendary":
+            filename = f"Legend_{level}_{self._legend_counter:03d}.png"
+            filepath = self.legend_dir / filename
+            self._legend_counter += 1
+        else:
+            filename = f"Unknown_{self._unknown_counter:03d}.png"
+            filepath = self.unknown_dir / filename
+            self._unknown_counter += 1
+        cv2.imwrite(str(filepath), img)
+        return str(filepath)
+
+    def recognize_ai(self, image_source) -> RecognitionResult:
+        """识别单张图片"""
+        img = self._load_image(image_source)
+        if img is None:
+            return RecognitionResult("Unknown", 0, 0.0)
+        crop = self._crop_image(img)
+        result = self._recognize(crop)
+        self._save_image(crop, result.rank, result.level)
+        return result
+
+    def recognize_batch_ai(self, sources: List[str]) -> List[RecognitionResult]:
+        """批量识别"""
+        return [self.recognize_ai(src) for src in sources]
