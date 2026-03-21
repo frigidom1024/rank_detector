@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(for dir:*)",
+      "Bash(do echo:*)",
+      "Read(//d/project/rank_detector/**)",
+      "Bash(done)",
+      "Bash(mv Bronze_30.png Bronze_3_1.png)",
+      "Bash(mv Diamond_30.png Diamond_3_1.png)",
+      "Bash(mv Gold_20.png Gold_2_1.png)",
+      "Bash(mv Silver_40.png Silver_4_1.png)",
+      "Bash(conda create:*)",
+      "Bash(where conda:*)",
+      "Bash(\"D:/InstallPath/miniconda/condabin/conda.bat\" create:*)",
+      "Bash(\"D:/InstallPath/miniconda/condabin/conda.bat\" run:*)",
+      "Bash(export PYTHONIOENCODING=utf-8)",
+      "Bash(\"D:/InstallPath/miniconda/Scripts/activate.exe\" rank_detector)",
+      "Bash(\"D:/InstallPath/miniconda/envs/rank_detector/python.exe\" \"d:/project/rank_detector/generate_training_data.py\")",
+      "Bash(\"D:/InstallPath/miniconda/envs/rank_detector/python.exe\" \"d:/project/rank_detector/train.py\")",
+      "Bash(\"D:/InstallPath/miniconda/envs/rank_detector/python.exe\" \"d:/project/rank_detector/download_model.py\")",
+      "Bash(\"D:/InstallPath/miniconda/envs/rank_detector/python.exe\" -c \"from ultralytics import YOLO; model = YOLO\\(''yolov8n.yaml''\\); print\\(''Model created from config''\\)\")",
+      "Bash(nvidia-smi)",
+      "Bash(\"D:/InstallPath/miniconda/envs/rank_detector/python.exe\" -c \"import torch; print\\(f''CUDA available: {torch.cuda.is_available\\(\\)}''\\); print\\(f''GPU: {torch.cuda.get_device_name\\(0\\) if torch.cuda.is_available\\(\\) else \"\"N/A\"\"}''\\)\")",
+      "Bash(\"D:/InstallPath/miniconda/envs/rank_detector/python.exe\" \"d:/project/rank_detector/test_model.py\" \"d:/project/rank_detector/dataset/images/val/val_000042.jpg\")"
+    ]
+  }
+}
