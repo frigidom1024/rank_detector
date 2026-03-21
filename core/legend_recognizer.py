@@ -1,6 +1,8 @@
 import base64
 import json
 import io
+import asyncio
+import aiohttp
 import requests
 from typing import List, Dict, Optional
 from PIL import Image
@@ -164,3 +166,53 @@ class AIAwareLegendRecognizer:
     def recognize_batch_ai(self, sources: List[str]) -> List[RecognitionResult]:
         """批量识别"""
         return [self.recognize_ai(src) for src in sources]
+
+    # ==================== Async Methods ====================
+
+    async def _acall_api(self, image_base64: str, prompt: str) -> dict:
+        """Async call the Doubao API."""
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+        payload = {
+            "model": self.api_model,
+            "input": [{
+                "role": "user",
+                "content": [
+                    {"type": "input_image", "image_url": f"data:image/png;base64,{image_base64}"},
+                    {"type": "input_text", "text": prompt}
+                ]
+            }]
+        }
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                f"{self.api_base_url}/responses",
+                headers=headers,
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=60),
+            ) as response:
+                response.raise_for_status()
+                return await response.json()
+
+    async def _arecognize(self, img: np.ndarray) -> RecognitionResult:
+        """Async full recognition pipeline."""
+        _, buffer = cv2.imencode(".png", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
+        image_base64 = base64.b64encode(buffer).decode("utf-8")
+        response = await self._acall_api(image_base64, LEGENDARY_PROMPT)
+        return self._parse_response(response)
+
+    async def recognize_ai_async(self, image_source) -> RecognitionResult:
+        """Async识别单张图片"""
+        img = self._load_image(image_source)
+        if img is None:
+            return RecognitionResult("Unknown", 0, 0.0)
+        crop = self._crop_image(img) if self.auto_crop else img
+        result = await self._arecognize(crop)
+        self._save_image(crop, result.rank, result.level)
+        return result
+
+    async def recognize_batch_ai_async(self, sources: List[str]) -> List[RecognitionResult]:
+        """Async批量识别"""
+        tasks = [self.recognize_ai_async(src) for src in sources]
+        return await asyncio.gather(*tasks)
