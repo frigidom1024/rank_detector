@@ -44,12 +44,14 @@ class AIAwareLegendRecognizer:
         api_model: str = "doubao-seed-2-0-pro-260215",
         legend_dir: str = "data/legend",
         unknown_dir: str = "data/unknown",
+        auto_crop: bool = False,  # 是否自动裁剪左上角图标区域
     ):
         self.api_key = api_key
         self.api_base_url = api_base_url
         self.api_model = api_model
         self.legend_dir = Path(legend_dir)
         self.unknown_dir = Path(unknown_dir)
+        self.auto_crop = auto_crop
         self._legend_counter = 0
         self._unknown_counter = 0
 
@@ -88,24 +90,16 @@ class AIAwareLegendRecognizer:
         }
         payload = {
             "model": self.api_model,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": prompt},
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": f"data:image/png;base64,{image_base64}"
-                            },
-                        },
-                    ],
-                }
-            ],
-            "max_tokens": 256,
+            "input": [{
+                "role": "user",
+                "content": [
+                    {"type": "input_image", "image_url": f"data:image/png;base64,{image_base64}"},
+                    {"type": "input_text", "text": prompt}
+                ]
+            }]
         }
         response = requests.post(
-            f"{self.api_base_url}/chat/completions",
+            f"{self.api_base_url}/responses",
             headers=headers,
             json=payload,
             timeout=30,
@@ -116,7 +110,13 @@ class AIAwareLegendRecognizer:
     def _parse_response(self, response: dict) -> RecognitionResult:
         """Parse API response into RecognitionResult."""
         try:
-            content = response["choices"][0]["message"]["content"]
+            content = ""
+            for item in response.get("output", []):
+                if item.get("type") == "message":
+                    for c in item.get("content", []):
+                        if c.get("type") == "output_text":
+                            content = c.get("text", "")
+                            break
             json_str = content.strip()
             if json_str.startswith("```json"):
                 json_str = json_str[7:]
@@ -156,7 +156,7 @@ class AIAwareLegendRecognizer:
         img = self._load_image(image_source)
         if img is None:
             return RecognitionResult("Unknown", 0, 0.0)
-        crop = self._crop_image(img)
+        crop = self._crop_image(img) if self.auto_crop else img
         result = self._recognize(crop)
         self._save_image(crop, result.rank, result.level)
         return result
