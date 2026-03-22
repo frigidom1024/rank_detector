@@ -354,6 +354,24 @@ class AIAwareLegendRecognizer:
         # 其他类型不视为 URL
         return None
 
+    def _sanitize_url(self, url: str) -> str:
+        """清理 URL 使其适合作为文件名"""
+        from urllib.parse import unquote
+
+        # 移除协议前缀
+        url = url.replace("http://", "").replace("https://", "")
+
+        # URL 解码（处理 %20 等）
+        url = unquote(url)
+
+        # 替换不安全字符
+        unsafe_chars = '/:?#\\\'"<>|*'
+        for char in unsafe_chars:
+            url = url.replace(char, '_')
+
+        # 限制长度（避免文件名过长）
+        return url[:100].strip()
+
     def _recognize(self, img: np.ndarray) -> RecognitionResult:
         """Full recognition pipeline: encode image and call API."""
         _, buffer = cv2.imencode(".png", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
