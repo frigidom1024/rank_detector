@@ -21,7 +21,7 @@ pip install -e .
 ## 快速开始
 
 ```python
-from rank_detector_core import AIAwareLegendRecognizer
+from rank_detector_core import AIAwareLegendRecognizer, SAVE_ALL, SAVE_UNKNOWN, SAVE_LEGENDARY, SAVE_NONE
 
 # 初始化
 recognizer = AIAwareLegendRecognizer(
