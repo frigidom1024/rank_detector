@@ -283,6 +283,10 @@ class AIAwareLegendRecognizer:
         legend_dir: str = "data/legend",
         unknown_dir: str = "data/unknown",
         auto_crop: bool = False,
+        save_flags: int = None,           # 新增：保存选项标志
+        save_unknown_with_url: bool = False,  # 新增：Unknown 文件名是否包含 URL
+        legend_counter: int = 0,          # 新增：Legendary 计数器初始值
+        unknown_counter: int = 0,         # 新增：Unknown 计数器初始值
     ):
         self.api_key = api_key
         self.api_base_url = api_base_url
@@ -291,8 +295,23 @@ class AIAwareLegendRecognizer:
         self.legend_dir = Path(legend_dir)
         self.unknown_dir = Path(unknown_dir)
         self.auto_crop = auto_crop
-        self._legend_counter = 0
-        self._unknown_counter = 0
+
+        # 设置默认 save_flags
+        if save_flags is None:
+            save_flags = self.SAVE_ALL
+
+        # 验证 save_flags 参数
+        if not isinstance(save_flags, int) or save_flags < 0 or save_flags > self.SAVE_ALL:
+            raise ValueError(
+                f"save_flags must be one of: "
+                f"SAVE_NONE({self.SAVE_NONE}), SAVE_UNKNOWN({self.SAVE_UNKNOWN}), "
+                f"SAVE_LEGENDARY({self.SAVE_LEGENDARY}), SAVE_ALL({self.SAVE_ALL})"
+            )
+
+        self._save_flags = save_flags
+        self._save_unknown_with_url = save_unknown_with_url
+        self._legend_counter = legend_counter
+        self._unknown_counter = unknown_counter
 
         # 创建API策略
         self._api_strategy = APIStrategyFactory.create(
