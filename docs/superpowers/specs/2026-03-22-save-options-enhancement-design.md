@@ -43,7 +43,20 @@ def __init__(
     auto_crop: bool = False,
     save_flags: int = SAVE_ALL,          # 新增：保存选项标志
     save_unknown_with_url: bool = False, # 新增：Unknown 文件名是否包含 URL
+    legend_counter: int = 0,             # 新增：Legendary 计数器初始值
+    unknown_counter: int = 0,            # 新增：Unknown 计数器初始值
 ):
+    # 验证 save_flags 参数
+    if not isinstance(save_flags, int) or save_flags < 0 or save_flags > self.SAVE_ALL:
+        raise ValueError(
+            f"save_flags must be one of: "
+            f"SAVE_NONE({self.SAVE_NONE}), SAVE_UNKNOWN({self.SAVE_UNKNOWN}), "
+            f"SAVE_LEGENDARY({self.SAVE_LEGENDARY}), SAVE_ALL({self.SAVE_ALL})"
+        )
+    self._save_flags = save_flags
+    self._save_unknown_with_url = save_unknown_with_url
+    self._legend_counter = legend_counter
+    self._unknown_counter = unknown_counter
 ```
 
 ### 3. 识别方法参数扩展
@@ -113,9 +126,13 @@ result = recognizer.recognize_ai(
 ```python
 def _extract_url(self, image_source) -> Optional[str]:
     """从 image_source 中提取 URL（仅当它是 HTTP(S) URL 时）"""
+    from pathlib import Path
+
+    # 字符串 URL
     if isinstance(image_source, str):
         if image_source.startswith("http://") or image_source.startswith("https://"):
             return image_source
+    # Path 对象不视为 URL
     return None
 ```
 
@@ -124,14 +141,21 @@ def _extract_url(self, image_source) -> Optional[str]:
 ```python
 def _sanitize_url(self, url: str) -> str:
     """清理 URL 使其适合作为文件名"""
+    from urllib.parse import unquote
+
     # 移除协议前缀
     url = url.replace("http://", "").replace("https://", "")
+
+    # URL 解码（处理 %20 等）
+    url = unquote(url)
+
     # 替换不安全字符
-    unsafe_chars = '/:?#\\'
+    unsafe_chars = '/:?#\\\'"<>|*'
     for char in unsafe_chars:
         url = url.replace(char, '_')
-    # 限制长度
-    return url[:100]
+
+    # 限制长度（避免文件名过长）
+    return url[:100].strip()
 ```
 
 ### 3. `_save_image` 方法修改
@@ -145,7 +169,10 @@ def _save_image(
     original_url: str = None,  # 新增：原始 URL
     save_flags: int = None     # 新增：临时覆盖保存标志
 ) -> Optional[str]:
-    """保存图片到对应目录，返回文件路径或 None"""
+    """保存图片到对应目录，返回文件路径或 None
+
+    注意：计数器仅在成功保存后递增，不保存时计数器不变
+    """
 
     # 使用传入的 save_flags 或实例默认值
     flags = save_flags if save_flags is not None else self._save_flags
@@ -153,13 +180,13 @@ def _save_image(
     # 确定是否需要保存
     if rank == "Legendary":
         should_save = flags & self.SAVE_LEGENDARY
-    else:
+    else:  # Unknown 或其他值都视为 Unknown
         should_save = flags & self.SAVE_UNKNOWN
 
     if not should_save:
         return None
 
-    # 构建文件名
+    # 构建文件名（在确认保存后才递增计数器，避免编号断层）
     if rank == "Legendary":
         filename = f"Legend_{level}_{self._legend_counter:03d}"
         self._legend_counter += 1
@@ -170,7 +197,8 @@ def _save_image(
         # Unknown 图片：如果启用且存在 URL，添加到文件名
         if self._save_unknown_with_url and original_url:
             clean_url = self._sanitize_url(original_url)
-            filename = f"{filename}_url_{clean_url}"
+            if clean_url:  # 只有清理后有内容才添加
+                filename = f"{filename}_url_{clean_url}"
 
     filename += ".png"
 
@@ -202,10 +230,36 @@ def recognize_ai(self, image_source, save_flags: int = None):
     crop = self._crop_image(img) if self.auto_crop else img
     result = self._recognize(crop)
 
-    # 保存时传递原始 URL
+    # 保存时传递原始 URL 和 save_flags
     self._save_image(crop, result.rank, result.level, original_url, save_flags)
 
     return result
+
+
+# 批量识别方法（所有图片使用相同的 save_flags）
+def recognize_batch_ai(self, sources: List[str], save_flags: int = None):
+    results = []
+    for source in sources:
+        result = self.recognize_ai(source, save_flags)
+        results.append(result)
+    return results
+
+
+# 异步识别方法（逻辑相同）
+async def recognize_ai_async(self, image_source, save_flags: int = None):
+    original_url = self._extract_url(image_source)
+    img = self._load_image(image_source)
+    if img is None:
+        return RecognitionResult("Unknown", 0, 0.0)
+    crop = self._crop_image(img) if self.auto_crop else img
+    result = await self._arecognize(crop)
+    self._save_image(crop, result.rank, result.level, original_url, save_flags)
+    return result
+
+
+async def recognize_batch_ai_async(self, sources: List[str], save_flags: int = None):
+    tasks = [self.recognize_ai_async(src, save_flags) for src in sources]
+    return await asyncio.gather(*tasks)
 ```
 
 ## 向后兼容性
@@ -213,6 +267,9 @@ def recognize_ai(self, image_source, save_flags: int = None):
 - 默认 `save_flags=SAVE_ALL`，保持当前行为（保存所有图片）
 - 默认 `save_unknown_with_url=False`，保持当前文件名格式
 - `save_flags` 是可选参数，现有代码无需修改
+- `_save_image` 返回类型从 `str` 变为 `Optional[str]`（私有方法，影响有限）
+
+**批量方法行为**: 批量识别方法对批次内所有图片应用相同的 `save_flags`。如需为每张图片设置不同的保存行为，请单独调用 `recognize_ai`。
 
 ## 文件名格式
 
@@ -224,9 +281,37 @@ def recognize_ai(self, image_source, save_flags: int = None):
 
 ## 线程安全
 
-- `save_flags` 参数通过方法传递，不修改实例变量
+- `save_flags` 参数通过方法传递，不修改实例变量，线程安全
 - `save_unknown_with_url` 是初始化配置，实例变量只读
-- 多线程可安全调用
+- **计数器**: `_legend_counter` 和 `_unknown_counter` 在多线程环境下可能产生竞态条件
+  - 单线程使用场景：无问题
+  - 多线程使用场景：如需严格递增，可使用 `threading.Lock` 保护计数器（当前未实现）
+
+## 错误处理
+
+- **save_flags 验证**: 初始化时验证，非整数或超出范围抛出 `ValueError`
+- **目录创建失败**: 捕获 `OSError`，打印警告并返回 `None`
+- **文件名过长**: URL 清理后限制在 100 字符，避免超过系统限制（Windows 260 字符）
+- **磁盘空间不足**: 由 `cv2.imwrite` 抛出异常，捕获后打印警告
+
+## 计数器生命周期
+
+- 计数器在实例化时初始化，默认为 0
+- 每次成功保存图片后递增，不保存时不变
+- 实例销毁后计数器状态丢失
+- 如需持久化，可通过 `legend_counter` 和 `unknown_counter` 参数恢复：
+  ```python
+  # 保存计数器状态
+  legend_count = recognizer._legend_counter
+  unknown_count = recognizer._unknown_counter
+
+  # 新实例恢复计数器
+  recognizer = AIAwareLegendRecognizer(
+      ...,
+      legend_counter=legend_count,
+      unknown_counter=unknown_count
+  )
+  ```
 
 ## 测试考虑
 
