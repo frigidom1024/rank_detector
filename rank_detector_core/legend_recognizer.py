@@ -433,14 +433,20 @@ class AIAwareLegendRecognizer:
 
         return str(filepath)
 
-    def recognize_ai(self, image_source) -> RecognitionResult:
+    def recognize_ai(self, image_source, save_flags: int = None) -> RecognitionResult:
         """识别单张图片"""
+        # 提取 URL（如果是网络图片）
+        original_url = self._extract_url(image_source)
+
         img = self._load_image(image_source)
         if img is None:
             return RecognitionResult("Unknown", 0, 0.0)
         crop = self._crop_image(img) if self.auto_crop else img
         result = self._recognize(crop)
-        self._save_image(crop, result.rank, result.level)
+
+        # 保存时传递原始 URL 和 save_flags
+        self._save_image(crop, result.rank, result.level, original_url, save_flags)
+
         return result
 
     def recognize_batch_ai(self, sources: List[str]) -> List[RecognitionResult]:
@@ -456,14 +462,20 @@ class AIAwareLegendRecognizer:
         response = await self._api_strategy.acall(image_base64, LEGENDARY_PROMPT)
         return self._api_strategy.parse_response(response)
 
-    async def recognize_ai_async(self, image_source) -> RecognitionResult:
+    async def recognize_ai_async(self, image_source, save_flags: int = None) -> RecognitionResult:
         """Async识别单张图片"""
+        # 提取 URL（如果是网络图片）
+        original_url = self._extract_url(image_source)
+
         img = self._load_image(image_source)
         if img is None:
             return RecognitionResult("Unknown", 0, 0.0)
         crop = self._crop_image(img) if self.auto_crop else img
         result = await self._arecognize(crop)
-        self._save_image(crop, result.rank, result.level)
+
+        # 保存时传递原始 URL 和 save_flags
+        self._save_image(crop, result.rank, result.level, original_url, save_flags)
+
         return result
 
     async def recognize_batch_ai_async(self, sources: List[str]) -> List[RecognitionResult]:
