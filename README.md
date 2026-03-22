@@ -38,6 +38,25 @@ recognizer = AIAwareLegendRecognizer(
 # - 智谱AI: api_base_url 包含 "bigmodel.cn" 或 "zhipuai"
 # 也可通过 api_type 参数显式指定: "doubao" 或 "zhipu"
 
+# 保存选项（使用二进制标志位组合）:
+# - SAVE_NONE=0: 都不保存
+# - SAVE_UNKNOWN=1: 只保存 Unknown
+# - SAVE_LEGENDARY=2: 只保存 Legendary
+# - SAVE_ALL=3: 都保存（默认）
+#
+# save_unknown_with_url: Unknown 文件名是否包含原始 URL
+# recognizer = AIAwareLegendRecognizer(
+#     ...,
+#     save_flags=SAVE_UNKNOWN,        # 只保存 Unknown
+#     save_unknown_with_url=True,     # 文件名包含 URL
+# )
+#
+# 调用时临时覆盖:
+# result = recognizer.recognize_ai(
+#     "image.png",
+#     save_flags=SAVE_LEGENDARY  # 这次只保存 Legendary
+# )
+
 # 同步识别
 result = recognizer.recognize_ai("test.png")
 print(f"Rank: {result.rank}, Level: {result.level}, Confidence: {result.confidence}")
