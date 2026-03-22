@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "legend-recognizer"
-version = "0.1.0"
-description = "游戏段位图标识别模块，专注于传奇(Legendary)段位识别"
+version = "0.2.0"
+description = "游戏段位图标识别模块，专注于传奇(Legendary)段位识别，支持多种AI API和灵活的保存选项"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -17,7 +17,7 @@ dependencies = [
 ]
 
 [project.urls]
-Repository = "https://github.com/your-repo/rank_detector"
+Repository = "https://github.com/frigidom1024/rank_detector"
 
 [tool.setuptools.packages.find]
 where = ["."]
