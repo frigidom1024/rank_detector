@@ -345,6 +345,15 @@ class AIAwareLegendRecognizer:
         y2 = int(CROP_REGION["y2"] * h)
         return img[y1:y2, x1:x2]
 
+    def _extract_url(self, image_source) -> Optional[str]:
+        """从 image_source 中提取 URL（仅当它是 HTTP(S) URL 时）"""
+        # 字符串 URL
+        if isinstance(image_source, str):
+            if image_source.startswith("http://") or image_source.startswith("https://"):
+                return image_source
+        # 其他类型不视为 URL
+        return None
+
     def _recognize(self, img: np.ndarray) -> RecognitionResult:
         """Full recognition pipeline: encode image and call API."""
         _, buffer = cv2.imencode(".png", cv2.cvtColor(img, cv2.COLOR_RGB2BGR))
