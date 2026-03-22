@@ -449,9 +449,9 @@ class AIAwareLegendRecognizer:
 
         return result
 
-    def recognize_batch_ai(self, sources: List[str]) -> List[RecognitionResult]:
+    def recognize_batch_ai(self, sources: List[str], save_flags: int = None) -> List[RecognitionResult]:
         """批量识别"""
-        return [self.recognize_ai(src) for src in sources]
+        return [self.recognize_ai(src, save_flags) for src in sources]
 
     # ==================== Async Methods ====================
 
@@ -478,7 +478,7 @@ class AIAwareLegendRecognizer:
 
         return result
 
-    async def recognize_batch_ai_async(self, sources: List[str]) -> List[RecognitionResult]:
+    async def recognize_batch_ai_async(self, sources: List[str], save_flags: int = None) -> List[RecognitionResult]:
         """Async批量识别"""
-        tasks = [self.recognize_ai_async(src) for src in sources]
+        tasks = [self.recognize_ai_async(src, save_flags) for src in sources]
         return await asyncio.gather(*tasks)
