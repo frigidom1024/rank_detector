@@ -379,19 +379,58 @@ class AIAwareLegendRecognizer:
         response = self._api_strategy.call(image_base64, LEGENDARY_PROMPT)
         return self._api_strategy.parse_response(response)
 
-    def _save_image(self, img: np.ndarray, rank: str, level: int) -> str:
-        """保存图片到对应目录"""
+    def _save_image(
+        self,
+        img: np.ndarray,
+        rank: str,
+        level: int,
+        original_url: str = None,
+        save_flags: int = None
+    ) -> Optional[str]:
+        """保存图片到对应目录，返回文件路径或 None
+
+        注意：计数器仅在成功保存后递增，不保存时计数器不变
+        """
+
+        # 使用传入的 save_flags 或实例默认值
+        flags = save_flags if save_flags is not None else self._save_flags
+
+        # 确定是否需要保存
         if rank == "Legendary":
-            filename = f"Legend_{level}_{self._legend_counter:03d}.png"
-            filepath = self.legend_dir / filename
+            should_save = flags & self.SAVE_LEGENDARY
+        else:  # Unknown 或其他值都视为 Unknown
+            should_save = flags & self.SAVE_UNKNOWN
+
+        if not should_save:
+            return None
+
+        # 构建文件名（在确认保存后才递增计数器，避免编号断层）
+        if rank == "Legendary":
+            filename = f"Legend_{level}_{self._legend_counter:03d}"
             self._legend_counter += 1
         else:
-            filename = f"Unknown_{self._unknown_counter:03d}.png"
-            filepath = self.unknown_dir / filename
+            filename = f"Unknown_{self._unknown_counter:03d}"
             self._unknown_counter += 1
-        # 转换为 BGR (cv2.imwrite expects BGR)
-        img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-        cv2.imwrite(str(filepath), img_bgr)
+
+            # Unknown 图片：如果启用且存在 URL，添加到文件名
+            if self._save_unknown_with_url and original_url:
+                clean_url = self._sanitize_url(original_url)
+                if clean_url:  # 只有清理后有内容才添加
+                    filename = f"{filename}_url_{clean_url}"
+
+        filename += ".png"
+
+        # 确定保存目录并保存
+        save_dir = self.legend_dir if rank == "Legendary" else self.unknown_dir
+        filepath = save_dir / filename
+
+        try:
+            img_bgr = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
+            cv2.imwrite(str(filepath), img_bgr)
+        except OSError as e:
+            print(f"Warning: Failed to save image to {filepath}: {e}")
+            return None
+
         return str(filepath)
 
     def recognize_ai(self, image_source) -> RecognitionResult:
