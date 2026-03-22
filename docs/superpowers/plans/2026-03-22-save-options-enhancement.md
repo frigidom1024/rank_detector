@@ -538,8 +538,6 @@ git commit -m "docs: 更新使用文档"
 **文件:**
 - Test: 手动运行测试脚本
 
-**注意**: 本测试脚本仅验证基础功能。完整的集成测试（实际图片识别和文件保存）需要在有 API Key 和测试图片的环境下运行。
-
 ### Task 12: 创建并运行测试脚本
 
 - [ ] **Step 1: 创建测试脚本**
@@ -549,15 +547,26 @@ git commit -m "docs: 更新使用文档"
 ```python
 """测试保存功能增强"""
 import sys
+import os
 sys.path.insert(0, 'd:/project/rank_detector')
 
 from rank_detector_core import AIAwareLegendRecognizer, SAVE_ALL, SAVE_UNKNOWN, SAVE_LEGENDARY, SAVE_NONE
 
+# 从 .env 文件读取 API 配置
+api_key = os.environ.get('DOUBAO_API_KEY', '1ab20cc0-3735-4b11-8728-ea52dcae2fe0')
+api_base_url = os.environ.get('DOUBAO_API_BASE_URL', 'https://ark.cn-beijing.volces.com/api/v3')
+api_model = os.environ.get('DOUBAO_API_MODEL', 'doubao-seed-2-0-pro-260215')
+
+print("=" * 50)
+print("保存功能增强测试")
+print("=" * 50)
+
 # 测试 1: 默认行为（保存所有）
-print("测试 1: 默认行为")
+print("\n测试 1: 默认行为")
 recognizer = AIAwareLegendRecognizer(
-    api_key="test_key",
-    api_base_url="https://ark.cn-beijing.volces.com/api/v3",
+    api_key=api_key,
+    api_base_url=api_base_url,
+    api_model=api_model,
     legend_dir="data/test_legend",
     unknown_dir="data/test_unknown",
 )
@@ -567,7 +576,9 @@ print(f"  save_unknown_with_url = {recognizer._save_unknown_with_url} (expected 
 # 测试 2: 只保存 Unknown
 print("\n测试 2: 只保存 Unknown")
 recognizer = AIAwareLegendRecognizer(
-    api_key="test_key",
+    api_key=api_key,
+    api_base_url=api_base_url,
+    api_model=api_model,
     save_flags=SAVE_UNKNOWN,
 )
 print(f"  save_flags = {recognizer._save_flags} (expected {SAVE_UNKNOWN})")
@@ -575,29 +586,87 @@ print(f"  save_flags = {recognizer._save_flags} (expected {SAVE_UNKNOWN})")
 # 测试 3: URL 提取
 print("\n测试 3: URL 提取")
 url = recognizer._extract_url("https://example.com/image.png")
-print(f"  URL extracted: {url} (expected https://example.com/image.png)")
+print(f"  URL extracted: {url}")
+assert url == "https://example.com/image.png", "URL 提取失败"
 
 local = recognizer._extract_url("/path/to/image.png")
-print(f"  Local file: {local} (expected None)")
+print(f"  Local file: {local}")
+assert local is None, "本地文件不应返回 URL"
 
 # 测试 4: URL 清理
 print("\n测试 4: URL 清理")
 clean = recognizer._sanitize_url("https://example.com/path/to/image.png?query=value")
 print(f"  Cleaned URL: {clean}")
-print(f"  (should have protocol removed and unsafe chars replaced)")
+assert "http" not in clean, "协议应该被移除"
+assert "?" not in clean or "_" in clean, "特殊字符应该被替换"
 
 # 测试 5: 无效 save_flags 抛出异常
 print("\n测试 5: 无效 save_flags 抛出异常")
 try:
     recognizer = AIAwareLegendRecognizer(
-        api_key="test_key",
+        api_key=api_key,
+        api_base_url=api_base_url,
+        api_model=api_model,
         save_flags=99,  # 无效值
     )
     print("  ERROR: 应该抛出 ValueError")
+    assert False, "应该抛出 ValueError"
 except ValueError as e:
-    print(f"  Caught expected ValueError: {e}")
+    print(f"  Caught expected ValueError")
 
-print("\n所有基础测试通过！")
+# 测试 6: 实际图片识别测试（使用豆包 API）
+print("\n测试 6: 实际图片识别测试")
+print("  使用现有测试图片进行识别...")
+
+# 检查是否有测试图片
+test_image = "data/legend/Legend_1898_000.png"
+if os.path.exists(test_image):
+    recognizer = AIAwareLegendRecognizer(
+        api_key=api_key,
+        api_base_url=api_base_url,
+        api_model=api_model,
+        legend_dir="data/test_output_legend",
+        unknown_dir="data/test_output_unknown",
+        save_flags=SAVE_ALL,
+        save_unknown_with_url=False,
+    )
+
+    result = recognizer.recognize_ai(test_image)
+    print(f"  识别结果: rank={result.rank}, level={result.level}, confidence={result.confidence}")
+
+    # 检查文件是否保存
+    if os.path.exists("data/test_output_legend"):
+        files = os.listdir("data/test_output_legend")
+        print(f"  保存的文件: {files}")
+else:
+    print(f"  跳过: 测试图片不存在 ({test_image})")
+
+# 测试 7: save_flags 临时覆盖
+print("\n测试 7: save_flags 临时覆盖")
+recognizer = AIAwareLegendRecognizer(
+    api_key=api_key,
+    api_base_url=api_base_url,
+    api_model=api_model,
+    save_flags=SAVE_ALL,
+    legend_dir="data/test_output_legend2",
+    unknown_dir="data/test_output_unknown2",
+)
+
+# 获取当前计数
+legend_count_before = recognizer._legend_counter
+print(f"  Legend counter before: {legend_count_before}")
+
+# 使用 SAVE_NONE 不保存
+if os.path.exists(test_image):
+    result = recognizer.recognize_ai(test_image, save_flags=SAVE_NONE)
+    legend_count_after = recognizer._legend_counter
+    print(f"  Legend counter after SAVE_NONE: {legend_count_after}")
+    assert legend_count_before == legend_count_after, "SAVE_NONE 时计数器不应递增"
+    print("  SAVE_NONE 正常工作")
+
+print("\n" + "=" * 50)
+print("所有测试通过！")
+print("=" * 50)
 ```
 
 - [ ] **Step 2: 运行测试**
@@ -607,15 +676,29 @@ cd d:/project/rank_detector
 D:/InstallPath/miniconda/envs/rank_detector/python test_save_features.py
 ```
 
-Expected: 所有测试通过
+Expected: 所有测试通过，实际识别并保存图片
 
-- [ ] **Step 3: 清理测试文件**
+- [ ] **Step 3: 验证保存的文件**
+
+```bash
+# 检查测试输出目录
+ls -la d:/project/rank_detector/data/test_output_legend/
+ls -la d:/project/rank_detector/data/test_output_unknown/
+```
+
+- [ ] **Step 4: 清理测试文件和目录**
 
 ```bash
 rm d:/project/rank_detector/test_save_features.py
+rm -rf d:/project/rank_detector/data/test_output_legend/
+rm -rf d:/project/rank_detector/data/test_output_unknown/
+rm -rf d:/project/rank_detector/data/test_legend/
+rm -rf d:/project/rank_detector/data/test_unknown/
+rm -rf d:/project/rank_detector/data/test_output_legend2/
+rm -rf d:/project/rank_detector/data/test_output_unknown2/
 ```
 
-- [ ] **Step 4: 提交最终实现**
+- [ ] **Step 5: 提交最终实现**
 
 ```bash
 git add -A
