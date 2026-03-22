@@ -268,6 +268,12 @@ class AIAwareLegendRecognizer:
     API_TYPE_DOUBAO = "doubao"
     API_TYPE_ZHIPU = "zhipu"
 
+    # 保存选项标志位（二进制组合）
+    SAVE_NONE = 0b00       # 都不保存
+    SAVE_UNKNOWN = 0b01    # 只保存 Unknown
+    SAVE_LEGENDARY = 0b10  # 只保存 Legendary
+    SAVE_ALL = 0b11        # 都保存（默认）
+
     def __init__(
         self,
         api_key: str,
